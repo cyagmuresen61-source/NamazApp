@@ -91,11 +91,12 @@
         .sound-row { display: flex; gap: 8px; margin-bottom: 8px; }
         .sound-select { flex: 1; padding: 10px; background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px; color: #fff; font-size: 14px; outline: none; }
         .sound-select option { background: #222; color: #fff; }
-        .test-btn { background: #ff9800; color: white; border: none; padding: 0 15px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+        .test-btn { background: #ff9800; color: white; border: none; padding: 0 12px; border-radius: 8px; font-weight: bold; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.3); font-size: 13px; }
 
         .upload-box { background: var(--glass-bg); border: 1px dashed var(--glass-border); padding: 10px; border-radius: 8px; text-align: center; font-size: 13px; }
         .upload-box input { display: none; }
         .upload-label { background: #00796b; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; display: inline-block; font-weight: bold; margin-top: 4px; }
+        .delete-audio-btn { background: #c62828; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; margin-left: 6px; display: none; }
 
         .theme-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-height: 180px; overflow-y: auto; padding-right: 4px; }
         .theme-card { height: 65px; border-radius: 10px; border: 2px solid rgba(255,255,255,0.9); cursor: pointer; display: flex; align-items: center; justify-content: center; text-align: center; color: white; font-weight: bold; font-size: 12px; text-shadow: 0 1px 4px rgba(0,0,0,0.9); box-shadow: 0 4px 10px rgba(0,0,0,0.4); background-size: cover; background-position: center; transition: 0.2s; }
@@ -104,7 +105,6 @@
 </head>
 <body>
 
-<!-- ANA UYGULAMA (Direk Açılır) -->
 <div class="app-container" id="appContainer">
     <div class="header">
         <h2>Hayat Düzenleyici</h2>
@@ -156,15 +156,14 @@
                 <label>🎶 Bildirim Sesini Seç ve Test Et</label>
                 <div class="sound-row">
                     <select id="notificationSound" class="sound-select">
-                        <option value="auto">🕌 Vaktine Göre Otomatik Ezan</option>
-                        <option value="sabah">🌅 Sabah Ezanı</option>
-                        <option value="normal">☀️ Öğle/İkindi/Akşam/Yatsı</option>
+                        <option value="none">🔕 Sesi Kapat (Sessiz)</option>
+                        <option value="ezan">🕌 Dijital Ezan Melodisi (Garantili)</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
                         <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Ses</option>
                     </select>
                     <button class="test-btn" onclick="testSound()">Dinle</button>
-                    <button class="test-btn" style="background:#d32f2f; padding: 0 10px;" onclick="stopAudio()">Dur</button>
+                    <button class="test-btn" style="background:#d32f2f;" onclick="stopAudio()">Dur</button>
                 </div>
                 
                 <div class="upload-box">
@@ -173,6 +172,7 @@
                         📂 Dosya Seç
                         <input type="file" id="customAudioFile" accept="audio/*" onchange="handleCustomAudio(event)">
                     </label>
+                    <button id="deleteAudioBtn" class="delete-audio-btn" onclick="deleteCustomAudio()">🗑️ Sesi Sil</button>
                     <div id="fileNameDisplay" style="font-size: 11px; margin-top: 4px; color: #ffeb3b;"></div>
                 </div>
             </div>
@@ -208,17 +208,31 @@
     let archives = [];
     let customAudioUrl = null;
     let currentAudio = new Audio();
+    let activeOscillators = [];
 
     function handleCustomAudio(event) {
         const file = event.target.files[0];
         if (file) {
             customAudioUrl = URL.createObjectURL(file);
-            document.getElementById('fileNameDisplay').innerHTML = `Seçilen: ${file.name}`;
+            document.getElementById('fileNameDisplay').innerHTML = `Yüklenen: ${file.name}`;
             const customOpt = document.getElementById('customOption');
             customOpt.style.display = 'block';
             document.getElementById('notificationSound').value = 'custom';
+            document.getElementById('deleteAudioBtn').style.display = 'inline-block';
             alert("Özel ses başarıyla yüklendi ve seçildi!");
         }
+    }
+
+    function deleteCustomAudio() {
+        stopAudio();
+        customAudioUrl = null;
+        document.getElementById('customAudioFile').value = '';
+        document.getElementById('fileNameDisplay').innerHTML = '';
+        const customOpt = document.getElementById('customOption');
+        customOpt.style.display = 'none';
+        document.getElementById('deleteAudioBtn').style.display = 'none';
+        document.getElementById('notificationSound').value = 'none';
+        alert("Özel ses başarıyla silindi ve ses kapatıldı.");
     }
 
     async function fetchPrayerTimes() {
@@ -259,10 +273,19 @@
     function stopAudio() {
         currentAudio.pause();
         currentAudio.currentTime = 0;
+        activeOscillators.forEach(osc => {
+            try { osc.stop(); } catch(e) {}
+        });
+        activeOscillators = [];
     }
 
-    function playSound(soundSetting, taskTitle = "öğle") {
+    // Telefonun kendi içinde kusursuz çalışan Dijital Ezan ve Ton Sentezleyicisi
+    function playSound(soundSetting) {
         stopAudio(); 
+
+        if (soundSetting === 'none') {
+            return; // Sessiz
+        }
         
         if (soundSetting === 'custom' && customAudioUrl) {
             currentAudio.src = customAudioUrl;
@@ -270,44 +293,69 @@
             return;
         }
 
-        if (soundSetting === 'bip' || soundSetting === 'zil') {
-            try {
-                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        try {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            if (soundSetting === 'bip') {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
-                osc.frequency.value = (soundSetting === 'bip') ? 440 : 800;
+                osc.frequency.value = 440;
                 osc.start();
+                activeOscillators.push(osc);
                 setTimeout(() => osc.stop(), 1000);
-            } catch(e) {}
-            return;
-        }
+            } 
+            else if (soundSetting === 'zil') {
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.frequency.value = 800;
+                osc.start();
+                activeOscillators.push(osc);
+                setTimeout(() => osc.stop(), 1200);
+            }
+            else if (soundSetting === 'ezan') {
+                // Ezan makamına benzer huzurlu nota dizilimi (Frekanslar)
+                const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 523.25];
+                const rhythm = [0, 400, 900, 1500, 2100, 2800, 3600];
+                const durations = [350, 450, 500, 500, 600, 700, 1200];
 
-        let targetType = soundSetting;
-        if (soundSetting === 'auto') {
-            targetType = taskTitle ? taskTitle.toLowerCase() : "normal";
+                notes.forEach((freq, index) => {
+                    let timeout = setTimeout(() => {
+                        if(audioCtx.state === 'closed') return;
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        
+                        osc.type = 'sine'; // Yumuşak ses dalgası
+                        osc.frequency.value = freq;
+                        
+                        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (durations[index]/1000));
+                        
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        
+                        osc.start();
+                        osc.stop(audioCtx.currentTime + (durations[index]/1000));
+                        activeOscillators.push(osc);
+                    }, rhythm[index]);
+                });
+            }
+        } catch(e) {
+            console.log("Ses çalma hatası:", e);
         }
-
-        if (targetType.includes('sabah')) {
-            currentAudio.src = 'https://upload.wikimedia.org/wikipedia/commons/5/5a/Adhan_Fajr_Cairo.ogg';
-        } else {
-            currentAudio.src = 'https://upload.wikimedia.org/wikipedia/commons/2/25/Adhan_Istanbul.ogg';
-        }
-
-        currentAudio.play().catch(err => {
-            console.log("Ses çalma hatası:", err);
-        });
     }
 
     function testSound() {
         const selectedSound = document.getElementById('notificationSound').value;
-        playSound(selectedSound, "öğle");
+        playSound(selectedSound);
     }
 
     function triggerNotification(taskTitle) {
         const selectedSound = document.getElementById('notificationSound').value;
-        playSound(selectedSound, taskTitle);
+        playSound(selectedSound);
 
         if (window.Notification && Notification.permission === "granted") {
             new Notification("Vakit Girdi!", {
@@ -436,7 +484,6 @@
         }
     }
 
-    // Uygulama doğrudan başlar
     fetchPrayerTimes();
     setInterval(checkPrayerTimes, 30000);
     renderTasks();
