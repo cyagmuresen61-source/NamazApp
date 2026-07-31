@@ -157,8 +157,8 @@
                 <div class="sound-row">
                     <select id="notificationSound" class="sound-select" onchange="saveSoundChoice()">
                         <option value="none">🔕 Sesi Kapat (Sessiz)</option>
-                        <option value="ezan">🕌 Gerçek İnsan Sesli Ezan (Dahili)</option>
-                        <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Özel Ses</option>
+                        <option value="ezan">🕌 Gerçek İnsan Sesli Ezan (MP3)</option>
+                        <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğim Özel Ses</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
                     </select>
@@ -208,8 +208,8 @@
     let archives = [];
     let currentAudio = new Audio();
 
-    // GERÇEK İNSAN SESLİ EZAN (Kodun içine gömülü yerel veri - İnternet engeline takılmaz, doğrudan telefonda çalar)
-    const builtInAdhanUrl = 'https://upload.wikimedia.org/wikipedia/commons/2/25/Adhan_Istanbul.ogg';
+    // Evrensel ve kesintisiz çalışan gerçek MP3 ezan kaynağı
+    const builtInAdhanUrl = 'https://ia800300.us.archive.org/19/items/Adhan_201603/adhan.mp3';
 
     window.addEventListener('DOMContentLoaded', () => {
         const savedAudio = localStorage.getItem('userAdhanAudio');
@@ -226,7 +226,7 @@
         if (savedChoice) {
             document.getElementById('notificationSound').value = savedChoice;
         } else {
-            document.getElementById('notificationSound').value = 'ezan'; // Varsayılan gerçek ezan
+            document.getElementById('notificationSound').value = 'ezan';
         }
     });
 
@@ -320,14 +320,14 @@
         stopAudio(); 
 
         if (soundSetting === 'none') {
-            return; // Sessiz
+            return;
         }
 
         if (soundSetting === 'ezan' || soundSetting === 'auto') {
             currentAudio.src = builtInAdhanUrl;
             currentAudio.play().catch(e => {
                 console.log("Ezan çalma hatası:", e);
-                alert("Ses çalınamadı. Lütfen tarayıcı ses izinlerini kontrol edin.");
+                alert("Ses çalınamadı. Lütfen internet bağlantınızı kontrol edin.");
             });
             return;
         }
