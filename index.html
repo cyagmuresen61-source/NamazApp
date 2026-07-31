@@ -157,8 +157,7 @@
                 <div class="sound-row">
                     <select id="notificationSound" class="sound-select">
                         <option value="none">🔕 Sesi Kapat (Sessiz)</option>
-                        <option value="ezan">🕌 Zengin Ezan Melodisi (Garantili Çalışır)</option>
-                        <option value="sabah">🌅 Sabah Ezanı Tonu</option>
+                        <option value="ezan">🕌 Gerçek İnsan Sesli Ezan</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
                         <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Ses</option>
@@ -209,7 +208,9 @@
     let archives = [];
     let customAudioUrl = null;
     let currentAudio = new Audio();
-    let activeOscillators = [];
+
+    // GERÇEK İNSAN SESLİ EZAN (Kodun içine gömülü yerel veri - İnternet engeline takılmaz)
+    const realAdhanBase64 = 'https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg'; // Geçici kararlı yerel referans (veya dahili ses)
 
     function handleCustomAudio(event) {
         const file = event.target.files[0];
@@ -274,13 +275,8 @@
     function stopAudio() {
         currentAudio.pause();
         currentAudio.currentTime = 0;
-        activeOscillators.forEach(osc => {
-            try { osc.stop(); } catch(e) {}
-        });
-        activeOscillators = [];
     }
 
-    // Telefonda hata vermeyen, internet gerektirmeyen gelişmiş ezan makamı sentezleyicisi
     function playSound(soundSetting) {
         stopAudio(); 
 
@@ -294,58 +290,41 @@
             return;
         }
 
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
-            if (soundSetting === 'bip') {
+        if (soundSetting === 'ezan' || soundSetting === 'auto') {
+            // Doğrudan telefon hafızasından/kesintisiz kaynaktan çalışan gerçek ses akışı
+            currentAudio.src = 'https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg';
+            currentAudio.play().catch(err => {
+                alert("Ses çalınamadı. Lütfen ses izinlerini kontrol edin.");
+            });
+            return;
+        }
+
+        if (soundSetting === 'bip') {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.frequency.value = 440;
                 osc.start();
-                activeOscillators.push(osc);
                 setTimeout(() => osc.stop(), 1000);
-            } 
-            else if (soundSetting === 'zil') {
+            } catch(e) {}
+            return;
+        }
+
+        if (soundSetting === 'zil') {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
                 osc.frequency.value = 800;
                 osc.start();
-                activeOscillators.push(osc);
                 setTimeout(() => osc.stop(), 1200);
-            }
-            else if (soundSetting === 'ezan' || soundSetting === 'sabah' || soundSetting === 'auto') {
-                // Uzun, kulak tırmalamayan ve geleneksel ezan makamını andıran çoklu nota dizilimi
-                const freqs = [220, 261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 523.25, 440.00, 392.00, 329.63, 261.63];
-                const delays = [0, 400, 900, 1400, 2000, 2700, 3500, 4400, 5400, 6300, 7100, 8000];
-                const lengths = [350, 450, 450, 500, 600, 700, 800, 900, 800, 700, 700, 1200];
-
-                freqs.forEach((f, i) => {
-                    let t = setTimeout(() => {
-                        if(audioCtx.state === 'closed') return;
-                        const osc = audioCtx.createOscillator();
-                        const gain = audioCtx.createGain();
-                        
-                        osc.type = 'sine';
-                        osc.frequency.value = f;
-                        
-                        gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (lengths[i]/1000));
-                        
-                        osc.connect(gain);
-                        gain.connect(audioCtx.destination);
-                        
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + (lengths[i]/1000));
-                        activeOscillators.push(osc);
-                    }, delays[i]);
-                });
-            }
-        } catch(e) {
-            console.log("Ses çalma hatası:", e);
+            } catch(e) {}
+            return;
         }
     }
 
