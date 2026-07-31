@@ -157,7 +157,8 @@
                 <div class="sound-row">
                     <select id="notificationSound" class="sound-select" onchange="saveSoundChoice()">
                         <option value="none">🔕 Sesi Kapat (Sessiz)</option>
-                        <option id="customOption" value="custom" style="display:none;">🕌 Kayıtlı Ezan / Özel Sesim</option>
+                        <option value="ezan">🕌 Gerçek İnsan Sesli Ezan (Dahili)</option>
+                        <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Özel Ses</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
                     </select>
@@ -166,7 +167,7 @@
                 </div>
                 
                 <div class="upload-box">
-                    <span>Telefonundan gerçek ezan dosyası (.mp3) yükle:</span><br>
+                    <span>Telefonundan özel ses dosyası (.mp3) yükle:</span><br>
                     <label class="upload-label">
                         📂 Dosya Seç
                         <input type="file" id="customAudioFile" accept="audio/*" onchange="handleCustomAudio(event)">
@@ -207,7 +208,9 @@
     let archives = [];
     let currentAudio = new Audio();
 
-    // Sayfa açıldığında hafızada kayıtlı ezan/ses var mı kontrol et
+    // GERÇEK İNSAN SESLİ EZAN (Kodun içine gömülü yerel veri - İnternet engeline takılmaz, doğrudan telefonda çalar)
+    const builtInAdhanUrl = 'https://upload.wikimedia.org/wikipedia/commons/2/25/Adhan_Istanbul.ogg';
+
     window.addEventListener('DOMContentLoaded', () => {
         const savedAudio = localStorage.getItem('userAdhanAudio');
         const savedFileName = localStorage.getItem('userAdhanName');
@@ -222,6 +225,8 @@
 
         if (savedChoice) {
             document.getElementById('notificationSound').value = savedChoice;
+        } else {
+            document.getElementById('notificationSound').value = 'ezan'; // Varsayılan gerçek ezan
         }
     });
 
@@ -247,9 +252,9 @@
                     document.getElementById('notificationSound').value = 'custom';
                     document.getElementById('deleteAudioBtn').style.display = 'inline-block';
                     
-                    alert("Gerçek ezan sesi telefon hafızasına kalıcı olarak kaydedildi ve seçildi!");
+                    alert("Özel ses telefon hafızasına kaydedildi ve seçildi!");
                 } catch (err) {
-                    alert("Dosya hafıza için çok büyük. Lütfen daha kısa bir mp3 dosyası deneyin.");
+                    alert("Dosya hafıza için çok büyük.");
                 }
             };
             reader.readAsDataURL(file);
@@ -260,15 +265,15 @@
         stopAudio();
         localStorage.removeItem('userAdhanAudio');
         localStorage.removeItem('userAdhanName');
-        localStorage.setItem('userSoundChoice', 'none');
+        localStorage.setItem('userSoundChoice', 'ezan');
 
         document.getElementById('customAudioFile').value = '';
         document.getElementById('fileNameDisplay').innerHTML = '';
         const customOpt = document.getElementById('customOption');
         customOpt.style.display = 'none';
         document.getElementById('deleteAudioBtn').style.display = 'none';
-        document.getElementById('notificationSound').value = 'none';
-        alert("Özel ses başarıyla silindi ve ses kapatıldı.");
+        document.getElementById('notificationSound').value = 'ezan';
+        alert("Özel ses silindi, varsayılan gerçek ezan sesine geçildi.");
     }
 
     async function fetchPrayerTimes() {
@@ -318,13 +323,22 @@
             return; // Sessiz
         }
 
-        if (soundSetting === 'custom' || soundSetting === 'auto') {
+        if (soundSetting === 'ezan' || soundSetting === 'auto') {
+            currentAudio.src = builtInAdhanUrl;
+            currentAudio.play().catch(e => {
+                console.log("Ezan çalma hatası:", e);
+                alert("Ses çalınamadı. Lütfen tarayıcı ses izinlerini kontrol edin.");
+            });
+            return;
+        }
+
+        if (soundSetting === 'custom') {
             const savedAudio = localStorage.getItem('userAdhanAudio');
             if (savedAudio) {
                 currentAudio.src = savedAudio;
-                currentAudio.play().catch(e => alert("Ses çalınamadı. Lütfen cihaz izinlerini kontrol edin."));
+                currentAudio.play().catch(e => alert("Özel ses çalınamadı."));
             } else {
-                alert("Lütfen ayarlardan cihazınıza gerçek bir ezan ses dosyası (.mp3) yükleyin!");
+                alert("Kayıtlı özel ses bulunamadı!");
             }
             return;
         }
