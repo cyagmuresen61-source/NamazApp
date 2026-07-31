@@ -155,19 +155,18 @@
             <div class="setting-group">
                 <label>🎶 Bildirim Sesini Seç ve Test Et</label>
                 <div class="sound-row">
-                    <select id="notificationSound" class="sound-select">
+                    <select id="notificationSound" class="sound-select" onchange="saveSoundChoice()">
                         <option value="none">🔕 Sesi Kapat (Sessiz)</option>
-                        <option value="ezan">🕌 Gerçek İnsan Sesli Ezan</option>
+                        <option id="customOption" value="custom" style="display:none;">🕌 Kayıtlı Ezan / Özel Sesim</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
-                        <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Ses</option>
                     </select>
                     <button class="test-btn" onclick="testSound()">Dinle</button>
                     <button class="test-btn" style="background:#d32f2f;" onclick="stopAudio()">Dur</button>
                 </div>
                 
                 <div class="upload-box">
-                    <span>Telefonundan özel ses dosyası (.mp3) seç:</span><br>
+                    <span>Telefonundan gerçek ezan dosyası (.mp3) yükle:</span><br>
                     <label class="upload-label">
                         📂 Dosya Seç
                         <input type="file" id="customAudioFile" accept="audio/*" onchange="handleCustomAudio(event)">
@@ -206,28 +205,63 @@
     ];
 
     let archives = [];
-    let customAudioUrl = null;
     let currentAudio = new Audio();
 
-    // GERÇEK İNSAN SESLİ EZAN (Kodun içine gömülü yerel veri - İnternet engeline takılmaz)
-    const realAdhanBase64 = 'https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg'; // Geçici kararlı yerel referans (veya dahili ses)
+    // Sayfa açıldığında hafızada kayıtlı ezan/ses var mı kontrol et
+    window.addEventListener('DOMContentLoaded', () => {
+        const savedAudio = localStorage.getItem('userAdhanAudio');
+        const savedFileName = localStorage.getItem('userAdhanName');
+        const savedChoice = localStorage.getItem('userSoundChoice');
+
+        if (savedAudio) {
+            const customOpt = document.getElementById('customOption');
+            customOpt.style.display = 'block';
+            document.getElementById('fileNameDisplay').innerHTML = `Kayıtlı: ${savedFileName || 'Özel Ses'}`;
+            document.getElementById('deleteAudioBtn').style.display = 'inline-block';
+        }
+
+        if (savedChoice) {
+            document.getElementById('notificationSound').value = savedChoice;
+        }
+    });
+
+    function saveSoundChoice() {
+        const choice = document.getElementById('notificationSound').value;
+        localStorage.setItem('userSoundChoice', choice);
+    }
 
     function handleCustomAudio(event) {
         const file = event.target.files[0];
         if (file) {
-            customAudioUrl = URL.createObjectURL(file);
-            document.getElementById('fileNameDisplay').innerHTML = `Yüklenen: ${file.name}`;
-            const customOpt = document.getElementById('customOption');
-            customOpt.style.display = 'block';
-            document.getElementById('notificationSound').value = 'custom';
-            document.getElementById('deleteAudioBtn').style.display = 'inline-block';
-            alert("Özel ses başarıyla yüklendi ve seçildi!");
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result;
+                try {
+                    localStorage.setItem('userAdhanAudio', base64Data);
+                    localStorage.setItem('userAdhanName', file.name);
+                    localStorage.setItem('userSoundChoice', 'custom');
+
+                    document.getElementById('fileNameDisplay').innerHTML = `Kayıtlı: ${file.name}`;
+                    const customOpt = document.getElementById('customOption');
+                    customOpt.style.display = 'block';
+                    document.getElementById('notificationSound').value = 'custom';
+                    document.getElementById('deleteAudioBtn').style.display = 'inline-block';
+                    
+                    alert("Gerçek ezan sesi telefon hafızasına kalıcı olarak kaydedildi ve seçildi!");
+                } catch (err) {
+                    alert("Dosya hafıza için çok büyük. Lütfen daha kısa bir mp3 dosyası deneyin.");
+                }
+            };
+            reader.readAsDataURL(file);
         }
     }
 
     function deleteCustomAudio() {
         stopAudio();
-        customAudioUrl = null;
+        localStorage.removeItem('userAdhanAudio');
+        localStorage.removeItem('userAdhanName');
+        localStorage.setItem('userSoundChoice', 'none');
+
         document.getElementById('customAudioFile').value = '';
         document.getElementById('fileNameDisplay').innerHTML = '';
         const customOpt = document.getElementById('customOption');
@@ -283,19 +317,15 @@
         if (soundSetting === 'none') {
             return; // Sessiz
         }
-        
-        if (soundSetting === 'custom' && customAudioUrl) {
-            currentAudio.src = customAudioUrl;
-            currentAudio.play().catch(e => alert("Cihazınız bu dosya türünü desteklemiyor."));
-            return;
-        }
 
-        if (soundSetting === 'ezan' || soundSetting === 'auto') {
-            // Doğrudan telefon hafızasından/kesintisiz kaynaktan çalışan gerçek ses akışı
-            currentAudio.src = 'https://actions.google.com/sounds/v1/ambiences/morning_birds.ogg';
-            currentAudio.play().catch(err => {
-                alert("Ses çalınamadı. Lütfen ses izinlerini kontrol edin.");
-            });
+        if (soundSetting === 'custom' || soundSetting === 'auto') {
+            const savedAudio = localStorage.getItem('userAdhanAudio');
+            if (savedAudio) {
+                currentAudio.src = savedAudio;
+                currentAudio.play().catch(e => alert("Ses çalınamadı. Lütfen cihaz izinlerini kontrol edin."));
+            } else {
+                alert("Lütfen ayarlardan cihazınıza gerçek bir ezan ses dosyası (.mp3) yükleyin!");
+            }
             return;
         }
 
