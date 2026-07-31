@@ -157,7 +157,9 @@
                 <div class="sound-row">
                     <select id="notificationSound" class="sound-select">
                         <option value="none">🔕 Sesi Kapat (Sessiz)</option>
-                        <option value="ezan">🕌 Dijital Ezan Melodisi (Garantili)</option>
+                        <option value="auto">🕌 Vaktine Göre Otomatik Gerçek Ezan</option>
+                        <option value="sabah">🌅 Sabah Ezanı (Gerçek Ses)</option>
+                        <option value="normal">☀️ Vakit Ezanı (Gerçek Ses)</option>
                         <option value="bip">🔔 Dijital Bip Sesi</option>
                         <option value="zil">🛎️ Huzurlu Çan Sesi</option>
                         <option id="customOption" value="custom" style="display:none;">📁 Kendi Yüklediğin Ses</option>
@@ -279,12 +281,12 @@
         activeOscillators = [];
     }
 
-    // Telefonun kendi içinde kusursuz çalışan Dijital Ezan ve Ton Sentezleyicisi
-    function playSound(soundSetting) {
+    // Gerçek Ezan Sesleri ve Tonlar
+    function playSound(soundSetting, taskTitle = "öğle") {
         stopAudio(); 
 
         if (soundSetting === 'none') {
-            return; // Sessiz
+            return; // Sessiz mod
         }
         
         if (soundSetting === 'custom' && customAudioUrl) {
@@ -293,69 +295,50 @@
             return;
         }
 
-        try {
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
-            if (soundSetting === 'bip') {
+        // Dijital Bip / Zil Sentezleyici
+        if (soundSetting === 'bip' || soundSetting === 'zil') {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
                 osc.connect(gain);
                 gain.connect(audioCtx.destination);
-                osc.frequency.value = 440;
+                osc.frequency.value = (soundSetting === 'bip') ? 440 : 800;
                 osc.start();
                 activeOscillators.push(osc);
                 setTimeout(() => osc.stop(), 1000);
-            } 
-            else if (soundSetting === 'zil') {
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
-                osc.frequency.value = 800;
-                osc.start();
-                activeOscillators.push(osc);
-                setTimeout(() => osc.stop(), 1200);
-            }
-            else if (soundSetting === 'ezan') {
-                // Ezan makamına benzer huzurlu nota dizilimi (Frekanslar)
-                const notes = [261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 523.25];
-                const rhythm = [0, 400, 900, 1500, 2100, 2800, 3600];
-                const durations = [350, 450, 500, 500, 600, 700, 1200];
-
-                notes.forEach((freq, index) => {
-                    let timeout = setTimeout(() => {
-                        if(audioCtx.state === 'closed') return;
-                        const osc = audioCtx.createOscillator();
-                        const gain = audioCtx.createGain();
-                        
-                        osc.type = 'sine'; // Yumuşak ses dalgası
-                        osc.frequency.value = freq;
-                        
-                        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-                        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (durations[index]/1000));
-                        
-                        osc.connect(gain);
-                        gain.connect(audioCtx.destination);
-                        
-                        osc.start();
-                        osc.stop(audioCtx.currentTime + (durations[index]/1000));
-                        activeOscillators.push(osc);
-                    }, rhythm[index]);
-                });
-            }
-        } catch(e) {
-            console.log("Ses çalma hatası:", e);
+            } catch(e) {}
+            return;
         }
+
+        // Gerçek Ezan Sesleri (Doğrudan açık kaynaklı güvenilir ses sunucuları üzerinden)
+        let targetType = soundSetting;
+        if (soundSetting === 'auto') {
+            targetType = taskTitle ? taskTitle.toLowerCase() : "normal";
+        }
+
+        if (targetType.includes('sabah')) {
+            // Gerçek Sabah Ezanı Kaydı
+            currentAudio.src = 'https://ia800300.us.archive.org/19/items/Adhan_201603/adhan.mp3';
+        } else {
+            // Gerçek Vakit Ezanı Kaydı (İstanbul / Genel)
+            currentAudio.src = 'https://ia600708.us.archive.org/31/items/AdhanMakkahMadinah/MakkahAdhan.mp3';
+        }
+
+        currentAudio.play().catch(err => {
+            console.log("Gerçek ezan çalınamadı:", err);
+            alert("Ezan sesi çalınamadı. Lütfen internet bağlantınızı kontrol edin veya ses iznini yenileyin.");
+        });
     }
 
     function testSound() {
         const selectedSound = document.getElementById('notificationSound').value;
-        playSound(selectedSound);
+        playSound(selectedSound, "sabah");
     }
 
     function triggerNotification(taskTitle) {
         const selectedSound = document.getElementById('notificationSound').value;
-        playSound(selectedSound);
+        playSound(selectedSound, taskTitle);
 
         if (window.Notification && Notification.permission === "granted") {
             new Notification("Vakit Girdi!", {
